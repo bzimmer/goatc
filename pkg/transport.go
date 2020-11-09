@@ -34,6 +34,7 @@ func (t *VerboseTransport) isText(header http.Header) bool {
 	//  - parameters
 	splits := strings.Split(contentType, ";")
 	switch splits[0] {
+	case "application/xml":
 	case "application/json":
 	case "application/ld+json":
 	case "application/geojson":

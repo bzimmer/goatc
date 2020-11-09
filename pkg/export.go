@@ -24,7 +24,8 @@ type ExportService service
 
 // Export initiates the export process
 func (s *ExportService) Export(ctx context.Context) (*Export, error) {
-	req, err := s.client.newAPIRequest(http.MethodPost, "export")
+	uri := "export"
+	req, err := s.client.newAPIRequest(http.MethodPost, uri)
 	if err != nil {
 		return nil, err
 	}

@@ -135,8 +135,8 @@ func initConfig(cmd *cobra.Command) error {
 func goatc(cmd *cobra.Command, args []string) error {
 	for _, arg := range args {
 		c, err := gc.NewClient(
-			gc.WithHTTPTracing(httptracing),
 			gc.WithSiteName(arg),
+			gc.WithHTTPTracing(httptracing),
 			gc.WithAPICredentials(accessToken))
 		if err != nil {
 			return err

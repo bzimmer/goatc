@@ -2,21 +2,14 @@ package pkg
 
 import "time"
 
-// Error .
-type Error struct {
-	Resource string `json:"resource"`
-	Field    string `json:"field"`
-	Code     string `json:"code"`
-}
-
 // Fault .
 type Fault struct {
-	Message string   `json:"message"`
-	Errors  []*Error `json:"errors"`
+	Err  string              `json:"error"`
+	Errs map[string][]string `json:"errors"`
 }
 
 func (f *Fault) Error() string {
-	return f.Message
+	return f.Err
 }
 
 // Export .

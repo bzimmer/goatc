@@ -1,0 +1,11 @@
+{
+    "errors": {
+        "key": [
+            "error1",
+            "error2"
+        ],
+        "another": [
+            "oh noes!"
+        ]
+    }
+}
