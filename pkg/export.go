@@ -9,14 +9,20 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/rs/zerolog/log"
+)
+
+const (
+	columnCount = 12
 )
 
 // ExportService .
 type ExportService service
 
-// Export .
+// Export initiates the export process
 func (s *ExportService) Export(ctx context.Context) (*Export, error) {
 	req, err := s.client.newAPIRequest(http.MethodPost, "export")
 	if err != nil {
@@ -30,7 +36,7 @@ func (s *ExportService) Export(ctx context.Context) (*Export, error) {
 	return exp, nil
 }
 
-// Status .
+// Status checks the status of an export
 func (s *ExportService) Status(ctx context.Context, id int) (*Export, error) {
 	uri := fmt.Sprintf("export/%d", id)
 	req, err := s.client.newAPIRequest(http.MethodGet, uri)
@@ -45,7 +51,7 @@ func (s *ExportService) Status(ctx context.Context, id int) (*Export, error) {
 	return exp, nil
 }
 
-// Download .
+// Download returns the contents of the download csv file
 func (s *ExportService) Download(ctx context.Context, id int) ([]*Stats, error) {
 	uri := fmt.Sprintf("export/%d/download", id)
 	req, err := s.client.newAPIRequest(http.MethodGet, uri)
@@ -58,7 +64,6 @@ func (s *ExportService) Download(ctx context.Context, id int) ([]*Stats, error) 
 	}
 	defer res.Body.Close()
 
-	// unfortunately the entire body needs to be read into memory first
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
@@ -78,89 +83,112 @@ func (s *ExportService) Download(ctx context.Context, id int) ([]*Stats, error) 
 	return parseReader(csv.NewReader(reader))
 }
 
+// Stats initiates an export and polls for the download file to be available
+func (s *ExportService) Stats(ctx context.Context) (*ExportedStats, error) {
+	exp, err := s.Export(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	exp, err = s.Status(ctx, exp.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	for exp.FinishedAt == nil {
+		// @todo replace with something more sophisticated
+		time.Sleep(500 * time.Millisecond)
+		exp, err = s.Status(ctx, exp.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	stats, err := s.Download(ctx, exp.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ExportedStats{
+		Export: exp,
+		Stats:  stats,
+	}, nil
+}
+
 func parseReader(reader *csv.Reader) ([]*Stats, error) {
 	coll := make([]*Stats, 0)
+
+	// consume the header row
+	_, err := reader.Read()
+	switch err {
+	case nil:
+	case io.EOF:
+		return coll, nil
+	default:
+		return nil, err
+	}
+
+	n := 0
 	for {
 		row, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
+		switch err {
+		case nil:
+			n++
+		case io.EOF:
+			log.Debug().Int("rows", n).Msg("parse")
+			return coll, nil
+		default:
 			return nil, err
 		}
-		stats, err := unmarshal(row)
-		if err != nil {
-			return nil, err
+		stats := &Stats{}
+		for i, w := range row {
+			switch i {
+			case 0: // 1Path
+				stats.Path = w
+			case 1: // Title
+				stats.Title = w
+			case 2: // Event
+				if b, err := strconv.ParseBool(w); err == nil {
+					stats.Event = b
+				} else {
+					return nil, err
+				}
+			case 3: // Bot
+				// the docs define bot as a bool but the data returned is an integer
+				if i, err := strconv.Atoi(w); err == nil {
+					stats.Bot = i
+				} else {
+					return nil, err
+				}
+			case 4: // Session
+				stats.Session = w
+			case 5: // FirstVisit
+				if b, err := strconv.ParseBool(w); err == nil {
+					stats.FirstVisit = b
+				} else {
+					return nil, err
+				}
+			case 6: // Referrer
+				stats.Referrer = w
+			case 7: // ReferrerScheme
+				stats.ReferrerScheme = w
+			case 8: // UserAgent
+				stats.UserAgent = w
+			case 9: // ScreenSize
+				stats.ScreenSize = w
+			case 10: // Location
+				stats.Location = w
+			case 11: // Date
+				if t, err := time.Parse(time.RFC3339, w); err == nil {
+					stats.Date = t
+				} else {
+					return nil, err
+				}
+			default:
+				log.Error().Strs("row", row).Int("count", i+1).Msg("too many columns")
+				return nil, fmt.Errorf("too many rows, found %d, expected %d", i+1, columnCount)
+			}
 		}
 		coll = append(coll, stats)
 	}
-	return coll, nil
 }
-
-func unmarshal(row []string) (*Stats, error) {
-	log.Info().Interface("row", row).Msg("unmarshall")
-	return &Stats{}, nil
-}
-
-// 	f := gj.NewFeature(
-// 		gj.NewPointGeometry(make([]float64, 3)))
-
-// 	parts := strings.Split(line, "|")
-// 	if len(parts) != gnisLength {
-// 		return nil, fmt.Errorf("found %d parts, expected %d", len(parts), gnisLength)
-// 	}
-
-// 	for i, s := range parts {
-// 		switch i {
-// 		case 0: // FEATURE_ID
-// 			x, err := strconv.Atoi(s)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			f.ID = x
-// 		case 1: // FEATURE_NAME
-// 			f.Properties["name"] = s
-// 		case 2: // FEATURE_CLASS
-// 			f.Properties["class"] = s
-// 		case 3: // STATE_ALPHA
-// 			f.Properties["state"] = s
-// 		case 4: // STATE_NUMERIC
-// 		case 5: // COUNTY_NAME
-// 		case 6: // COUNTY_NUMERIC
-// 		case 7: // PRIMARY_LAT_DMS
-// 		case 8: // PRIM_LONG_DMS
-// 		case 9: // PRIM_LAT_DEC
-// 			x, err := strconv.ParseFloat(s, 64)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			f.Geometry.Point[1] = x
-// 		case 10: // PRIM_LONG_DEC
-// 			x, err := strconv.ParseFloat(s, 64)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			f.Geometry.Point[0] = x
-// 		case 11: // SOURCE_LAT_DMS
-// 		case 12: // SOURCE_LONG_DMS
-// 		case 13: // SOURCE_LAT_DEC
-// 		case 14: // SOURCE_LONG_DEC
-// 		case 15: // ELEV_IN_M
-// 			if s == "" {
-// 				// not important enough to care about _though_ 0 m elevation is a legit value -- hmmm
-// 				continue
-// 			}
-// 			x, err := strconv.ParseFloat(s, 64)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			f.Geometry.Point[2] = x
-// 		case 16: // ELEV_IN_FT
-// 		case 17: // MAP_NAME
-// 		case 18: // DATE_CREATED
-// 		case 19: // DATE_EDITED
-// 		default:
-// 		}
-// 	}
-// 	return f, nil
-// }

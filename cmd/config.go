@@ -11,7 +11,4 @@ var (
 	encoder     *json.Encoder
 
 	accessToken string
-
-	status   int
-	download int
 )

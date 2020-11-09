@@ -15,17 +15,16 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/bzimmer/goat/pkg"
-	goat "github.com/bzimmer/goat/pkg"
+	gc "github.com/bzimmer/goatc/pkg"
 )
 
 const (
 	// The name of our config file without the file extension
-	defaultConfigFilename = ".goat"
+	defaultConfigFilename = ".goatc"
 
 	// The environment variable prefix of all environment variables bound to our command line flags.
-	// For example, --number is bound to GOAT_NUMBER.
-	envPrefix = "GOAT"
+	// For example, --number is bound to GOATC_NUMBER.
+	envPrefix = "GOATC"
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -40,7 +39,7 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(
-		&config, "config", "", "config file (default is $HOME/.goat.yaml)")
+		&config, "config", "", "config file (default is $HOME/.goatc.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&verbosity, "verbosity", "v",
 		zerolog.InfoLevel.String(), "Log level (trace, debug, info, warn, error, fatal, panic")
 	rootCmd.PersistentFlags().BoolVarP(&monochrome, "monochrome", "m",
@@ -49,10 +48,8 @@ func init() {
 		false, "Use compact JSON output")
 	rootCmd.PersistentFlags().BoolVarP(&httptracing, "http-tracing", "",
 		false, "Log all http calls (warning: this will log ids, keys, and other sensitive information)")
-	rootCmd.PersistentFlags().StringVarP(&accessToken, "accessToken", "k", "", "API access token")
 
-	rootCmd.PersistentFlags().IntVarP(&status, "status", "s", 0, "check the status of an export")
-	rootCmd.PersistentFlags().IntVarP(&download, "download", "d", 0, "download stats for export")
+	rootCmd.PersistentFlags().StringVarP(&accessToken, "access_token", "k", "", "API access token")
 }
 
 func initLogging(cmd *cobra.Command) error {
@@ -136,28 +133,19 @@ func initConfig(cmd *cobra.Command) error {
 }
 
 func goatc(cmd *cobra.Command, args []string) error {
-	var (
-		obj interface{}
-	)
 	for _, arg := range args {
-		c, err := goat.NewClient(
-			goat.WithHTTPTracing(httptracing),
-			goat.WithSiteName(arg),
-			goat.WithAPICredentials(accessToken))
+		c, err := gc.NewClient(
+			gc.WithHTTPTracing(httptracing),
+			gc.WithSiteName(arg),
+			gc.WithAPICredentials(accessToken))
 		if err != nil {
 			return err
 		}
-		if status > 0 {
-			obj, err = c.Export.Status(cmd.Context(), status)
-		} else if download > 0 {
-			obj, err = c.Export.Download(cmd.Context(), download)
-		} else {
-			obj, err = c.Export.Export(cmd.Context())
-		}
+		exp, err := c.Export.Stats(cmd.Context())
 		if err != nil {
 			return err
 		}
-		encoder.Encode(obj)
+		encoder.Encode(exp)
 	}
 	return nil
 }
@@ -174,7 +162,7 @@ var rootCmd = &cobra.Command{
 		if err := initConfig(cmd); err != nil {
 			return nil
 		}
-		encoder = pkg.NewEncoder(cmd.OutOrStdout(), compact)
+		encoder = gc.NewEncoder(cmd.OutOrStdout(), compact)
 		return nil
 	},
 }

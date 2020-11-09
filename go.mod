@@ -1,9 +1,8 @@
-module github.com/bzimmer/goat
+module github.com/bzimmer/goatc
 
 go 1.15
 
 require (
-	github.com/apex/log v1.9.0
 	github.com/fatih/color v1.7.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/rs/zerolog v1.20.0

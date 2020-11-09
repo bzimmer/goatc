@@ -1,0 +1,63 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  APP:
+    sh: basename $PWD
+  DIST: dist
+  GO_PACKAGES:
+    sh: go list ./...
+  VERSION:
+    sh: git rev-parse --short HEAD
+  LDFLAGS:
+    -ldflags "-X github.com/bzimmer/{{.APP}}/pkg.BuildVersion={{.VERSION}}"
+
+tasks:
+  default:
+    cmds:
+      - task: build
+
+  build:
+    desc: Build the application
+    sources:
+      - '**/*.go'
+    cmds:
+      - go build {{.LDFLAGS}} -o {{.DIST}}/{{.APP}} main.go
+
+  install:
+    desc: Install {{.APP}}
+    deps: [test]
+    cmds:
+      - task: build
+        vars:
+          DIST:
+            sh: echo $GOPATH/bin
+
+  lint:
+    desc: Runs golint
+    cmds:
+      - golint {{catLines .GO_PACKAGES}}
+
+  vet:
+    desc: Runs golint
+    cmds:
+      - go vet {{catLines .GO_PACKAGES}}
+
+  test:
+    desc: Run all tests
+    cmds:
+      - mkdir -p {{.DIST}}
+      - go test -covermode count -coverprofile {{.DIST}}/coverage.txt {{catLines .GO_PACKAGES}}
+
+  cover:
+    desc: Visualize test coverage
+    deps: [test]
+    cmds:
+      - go tool cover -html={{.DIST}}/coverage.txt
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf {{.DIST}}
+      - rm -rf .task

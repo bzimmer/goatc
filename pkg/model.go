@@ -35,4 +35,23 @@ type Export struct {
 }
 
 // Stats .
-type Stats struct{}
+type Stats struct {
+	Path           string    `json:"path"`
+	Title          string    `json:"title"`
+	Event          bool      `json:"event"`
+	Bot            int       `json:"bot"`
+	Session        string    `json:"session"`
+	FirstVisit     bool      `json:"first_visit"`
+	Referrer       string    `json:"referrer"`
+	ReferrerScheme string    `json:"referrer_scheme"`
+	UserAgent      string    `json:"user_agent"`
+	ScreenSize     string    `json:"screen_size"`
+	Location       string    `json:"location"`
+	Date           time.Time `json:"date"`
+}
+
+// ExportedStats .
+type ExportedStats struct {
+	*Export `json:"export"`
+	Stats   []*Stats `json:"stats"`
+}
