@@ -8,10 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/bzimmer/transport"
 )
 
 const (
-	goatcounterURI = "https://%s.goatcounter.com/api/v0"
+	baseURL = "https://%s.goatcounter.com/api/v0"
 )
 
 // Client client
@@ -37,7 +39,7 @@ func WithHTTPTracing(debug bool) Option {
 		if !debug {
 			return nil
 		}
-		c.client.Transport = &VerboseTransport{
+		c.client.Transport = &transport.VerboseTransport{
 			Transport: c.client.Transport,
 		}
 		return nil
@@ -97,7 +99,7 @@ func NewClient(opts ...Option) (*Client, error) {
 }
 
 func (c *Client) url(uri string) (*url.URL, error) {
-	site := fmt.Sprintf(goatcounterURI, c.siteName)
+	site := fmt.Sprintf(baseURL, c.siteName)
 	return url.Parse(fmt.Sprintf("%s/%s", site, uri))
 }
 
