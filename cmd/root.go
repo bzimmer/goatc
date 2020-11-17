@@ -172,7 +172,7 @@ var rootCmd = &cobra.Command{
 		if err := initConfig(cmd); err != nil {
 			return nil
 		}
-		encoder = gc.NewEncoder(cmd.OutOrStdout(), compact)
+		encoder = newEncoder(cmd.OutOrStdout(), compact)
 		return nil
 	},
 }

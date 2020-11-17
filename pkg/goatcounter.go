@@ -27,7 +27,7 @@ type Client struct {
 }
 
 type service struct {
-	client *Client
+	client *Client // nolint
 }
 
 // Option .
@@ -103,7 +103,7 @@ func (c *Client) url(uri string) (*url.URL, error) {
 	return url.Parse(fmt.Sprintf("%s/%s", site, uri))
 }
 
-func (c *Client) newAPIRequest(method, uri string) (*http.Request, error) {
+func (c *Client) newAPIRequest(ctx context.Context, method, uri string) (*http.Request, error) {
 	if c.accessToken == "" {
 		return nil, errors.New("accessToken required")
 	}
@@ -111,7 +111,7 @@ func (c *Client) newAPIRequest(method, uri string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(method, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -121,21 +121,16 @@ func (c *Client) newAPIRequest(method, uri string) (*http.Request, error) {
 }
 
 // Do executes the request
-func (c *Client) Do(ctx context.Context, req *http.Request, v interface{}) error {
-	if ctx == nil {
-		return errors.New("context must be non-nil")
-	}
-
+func (c *Client) Do(req *http.Request, v interface{}) error {
+	ctx := req.Context()
 	res, err := c.client.Do(req)
 	if err != nil {
-		// If we got an error, and the context has been canceled,
-		// the context's error is probably more useful.
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+			return err
 		}
-		return err
 	}
 	defer res.Body.Close()
 

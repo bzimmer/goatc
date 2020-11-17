@@ -25,12 +25,12 @@ type ExportService service
 // Export initiates the export process
 func (s *ExportService) Export(ctx context.Context) (*Export, error) {
 	uri := "export"
-	req, err := s.client.newAPIRequest(http.MethodPost, uri)
+	req, err := s.client.newAPIRequest(ctx, http.MethodPost, uri)
 	if err != nil {
 		return nil, err
 	}
 	exp := &Export{}
-	err = s.client.Do(ctx, req, &exp)
+	err = s.client.Do(req, &exp)
 	if err != nil {
 		return nil, err
 	}
@@ -40,12 +40,12 @@ func (s *ExportService) Export(ctx context.Context) (*Export, error) {
 // Status checks the status of an export
 func (s *ExportService) Status(ctx context.Context, id int) (*Export, error) {
 	uri := fmt.Sprintf("export/%d", id)
-	req, err := s.client.newAPIRequest(http.MethodGet, uri)
+	req, err := s.client.newAPIRequest(ctx, http.MethodGet, uri)
 	if err != nil {
 		return nil, err
 	}
 	exp := &Export{}
-	err = s.client.Do(ctx, req, &exp)
+	err = s.client.Do(req, &exp)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (s *ExportService) Status(ctx context.Context, id int) (*Export, error) {
 // Download returns the contents of the download csv file
 func (s *ExportService) Download(ctx context.Context, id int) ([]*Stats, error) {
 	uri := fmt.Sprintf("export/%d/download", id)
-	req, err := s.client.newAPIRequest(http.MethodGet, uri)
+	req, err := s.client.newAPIRequest(ctx, http.MethodGet, uri)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func parseReader(reader *csv.Reader) ([]*Stats, error) {
 				stats.Location = w
 			case 11: // Date
 				if t, err := time.Parse(time.RFC3339, w); err == nil {
-					stats.Date = t
+					stats.Date = &t
 				} else {
 					return nil, err
 				}

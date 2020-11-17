@@ -29,10 +29,14 @@ func Test_ExportError(t *testing.T) {
 	a.Nil(exp)
 	a.Equal("oh noes!", err.Error())
 
-	pkg.WithTransport(&transport.TestDataTransport{
-		Status:      http.StatusForbidden,
-		Filename:    "multiple_errors.json",
-		ContentType: "application/json"})(c)
+	c, err = pkg.NewClient(
+		pkg.WithTransport(&transport.TestDataTransport{
+			Status:      http.StatusForbidden,
+			Filename:    "multiple_errors.json",
+			ContentType: "application/json"}),
+		pkg.WithAPICredentials("fooAccessToken"))
+	a.NoError(err)
+	a.NotNil(c)
 
 	exp, err = c.Export.Status(context.Background(), 600)
 	a.Error(err)
