@@ -133,6 +133,13 @@ func initConfig(cmd *cobra.Command) error {
 }
 
 func goatc(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		err := cmd.Help()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 	for _, arg := range args {
 		c, err := gc.NewClient(
 			gc.WithSiteName(arg),
@@ -145,7 +152,10 @@ func goatc(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		encoder.Encode(exp)
+		err = encoder.Encode(exp)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
