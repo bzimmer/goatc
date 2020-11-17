@@ -1,7 +1,14 @@
 package main
 
-import "github.com/bzimmer/goatc/cmd"
+import (
+	"os"
+
+	"github.com/bzimmer/goatc/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	err := cmd.Run()
+	if err != nil {
+		os.Exit(1)
+	}
 }
