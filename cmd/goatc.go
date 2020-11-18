@@ -108,37 +108,33 @@ func flags() ([]cli.Flag, error) {
 	}, nil
 }
 
-var sites = &cli.Command{
-	Name:  "sites",
-	Usage: "Return all site names",
-	Action: func(c *cli.Context) error {
-		i := 0
-		s := make([]string, len(config))
-		for k := range config {
-			s[i] = k
-			i++
-		}
-		_ = encoder.Encode(s)
-		return nil
-	},
-}
-
-var goatc = func(c *cli.Context) error {
+func apikeys(args []string) [][]string {
 	var (
-		ok     bool
-		site   map[string]string
-		apiKey string
+		i    int
+		ok   bool
+		api  string
+		site map[string]string
 	)
-	args := c.Args().Slice()
 	if len(args) == 0 {
-		i := 0
-		args = make([]string, len(config))
 		for k := range config {
-			args[i] = k
-			i++
+			args = append(args, k)
 		}
 	}
+	res := make([][]string, len(args))
+	for _, arg := range args {
+		if site, ok = config[arg]; !ok {
+			continue
+		}
+		if api, ok = site["api-key"]; !ok {
+			continue
+		}
+		res[i] = []string{arg, api}
+		i++
+	}
+	return res
+}
 
+func goatc(c *cli.Context) error {
 	type R struct {
 		Stats *pkg.ExportedStats
 		Error error
@@ -148,14 +144,7 @@ var goatc = func(c *cli.Context) error {
 	stats := make(chan *R)
 	deadline := time.Now().Add(c.Duration("timeout"))
 
-	for _, arg := range args {
-		if site, ok = config[arg]; !ok {
-			continue
-		}
-		if apiKey, ok = site["api-key"]; !ok {
-			continue
-		}
-
+	for _, s := range apikeys(c.Args().Slice()) {
 		wg.Add(1)
 		go func(siteName, apiKey string) {
 			defer wg.Done()
@@ -172,7 +161,7 @@ var goatc = func(c *cli.Context) error {
 			}
 			exp, err := client.Export.Stats(ctx)
 			stats <- &R{Stats: exp, Error: err}
-		}(arg, apiKey)
+		}(s[0], s[1])
 	}
 
 	go func() {

@@ -98,7 +98,7 @@ func (s *ExportService) Stats(ctx context.Context) (*ExportedStats, error) {
 
 	for exp.FinishedAt == nil {
 		// @todo replace with something more sophisticated
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
 		exp, err = s.Status(ctx, exp.ID)
 		if err != nil {
 			return nil, err
@@ -116,7 +116,7 @@ func (s *ExportService) Stats(ctx context.Context) (*ExportedStats, error) {
 	}, nil
 }
 
-func parseReader(reader *csv.Reader) ([]*Stats, error) {
+func parseReader(reader *csv.Reader) ([]*Stats, error) { // nolint:funlen,gocyclo
 	coll := make([]*Stats, 0)
 
 	// consume the header row
@@ -156,8 +156,8 @@ func parseReader(reader *csv.Reader) ([]*Stats, error) {
 				}
 			case 3: // Bot
 				// the docs define bot as a bool but the data returned is an integer
-				if i, err := strconv.Atoi(w); err == nil {
-					stats.Bot = i
+				if b, err := strconv.Atoi(w); err == nil {
+					stats.Bot = b
 				} else {
 					return nil, err
 				}
