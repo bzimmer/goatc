@@ -108,7 +108,22 @@ func flags() ([]cli.Flag, error) {
 	}, nil
 }
 
-var command = func(c *cli.Context) error {
+var sites = &cli.Command{
+	Name:  "sites",
+	Usage: "Return all site names",
+	Action: func(c *cli.Context) error {
+		i := 0
+		s := make([]string, len(config))
+		for k := range config {
+			s[i] = k
+			i++
+		}
+		_ = encoder.Encode(s)
+		return nil
+	},
+}
+
+var goatc = func(c *cli.Context) error {
 	var (
 		ok     bool
 		site   map[string]string
@@ -194,6 +209,9 @@ func Run() error {
 		Usage:     "Command line access to site stats on https://goatcounter.com",
 		UsageText: "goatc - check site stats",
 		Flags:     fs,
+		Commands: []*cli.Command{
+			sites,
+		},
 		Before: func(c *cli.Context) error {
 			fns := []cli.BeforeFunc{initLogging, initEncoding, initConfig}
 			for _, fn := range fns {
@@ -208,7 +226,7 @@ func Run() error {
 				log.Error().Err(err).Msg(c.App.Name)
 			}
 		},
-		Action: command,
+		Action: goatc,
 	}
 	ctx := context.Background()
 	err = app.RunContext(ctx, os.Args)
