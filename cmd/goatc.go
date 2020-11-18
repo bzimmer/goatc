@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -115,9 +114,14 @@ var command = func(c *cli.Context) error {
 		site   map[string]string
 		apiKey string
 	)
-	args := c.Args()
-	if args.Len() == 0 {
-		return errors.New("no sites specified")
+	args := c.Args().Slice()
+	if len(args) == 0 {
+		i := 0
+		args = make([]string, len(config))
+		for k := range config {
+			args[i] = k
+			i++
+		}
 	}
 
 	type R struct {
@@ -129,8 +133,7 @@ var command = func(c *cli.Context) error {
 	stats := make(chan *R)
 	deadline := time.Now().Add(c.Duration("timeout"))
 
-	for i := 0; i < args.Len(); i++ {
-		arg := args.Get(i)
+	for _, arg := range args {
 		if site, ok = config[arg]; !ok {
 			continue
 		}
@@ -144,6 +147,7 @@ var command = func(c *cli.Context) error {
 			ctx, cancel := context.WithDeadline(c.Context, deadline)
 			defer cancel()
 
+			log.Info().Str("site", siteName).Msg(c.App.Name)
 			client, err := pkg.NewClient(
 				pkg.WithSiteName(siteName),
 				pkg.WithHTTPTracing(c.Bool("http-tracing")),
@@ -151,7 +155,6 @@ var command = func(c *cli.Context) error {
 			if err != nil {
 				stats <- &R{Stats: nil, Error: err}
 			}
-
 			exp, err := client.Export.Stats(ctx)
 			stats <- &R{Stats: exp, Error: err}
 		}(arg, apiKey)
