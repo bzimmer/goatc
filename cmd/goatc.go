@@ -144,7 +144,7 @@ func goatc(c *cli.Context) error {
 	stats := make(chan *R)
 	deadline := time.Now().Add(c.Duration("timeout"))
 
-	for _, s := range apikeys(c.Args().Slice()) {
+	for _, k := range apikeys(c.Args().Slice()) {
 		wg.Add(1)
 		go func(siteName, apiKey string) {
 			defer wg.Done()
@@ -158,10 +158,11 @@ func goatc(c *cli.Context) error {
 				pkg.WithAPICredentials(apiKey))
 			if err != nil {
 				stats <- &R{Stats: nil, Error: err}
+				return
 			}
 			exp, err := client.Export.Stats(ctx)
 			stats <- &R{Stats: exp, Error: err}
-		}(s[0], s[1])
+		}(k[0], k[1])
 	}
 
 	go func() {
