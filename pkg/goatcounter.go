@@ -92,7 +92,6 @@ func NewClient(opts ...Option) (*Client, error) {
 		}
 	}
 
-	// Services used for talking to Strava
 	c.Export = &ExportService{client: c}
 
 	return c, nil

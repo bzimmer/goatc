@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -16,7 +17,7 @@ import (
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v2"
 
-	gc "github.com/bzimmer/goatc/pkg"
+	"github.com/bzimmer/goatc/pkg"
 )
 
 var (
@@ -118,6 +119,16 @@ var command = func(c *cli.Context) error {
 	if args.Len() == 0 {
 		return errors.New("no sites specified")
 	}
+
+	type R struct {
+		Stats *pkg.ExportedStats
+		Error error
+	}
+
+	wg := &sync.WaitGroup{}
+	stats := make(chan *R)
+	deadline := time.Now().Add(c.Duration("timeout"))
+
 	for i := 0; i < args.Len(); i++ {
 		arg := args.Get(i)
 		if site, ok = config[arg]; !ok {
@@ -126,23 +137,44 @@ var command = func(c *cli.Context) error {
 		if apiKey, ok = site["api-key"]; !ok {
 			continue
 		}
-		client, err := gc.NewClient(
-			gc.WithSiteName(arg),
-			gc.WithHTTPTracing(c.Bool("http-tracing")),
-			gc.WithAPICredentials(apiKey))
-		if err != nil {
-			return err
+
+		wg.Add(1)
+		go func(siteName, apiKey string) {
+			defer wg.Done()
+			ctx, cancel := context.WithDeadline(c.Context, deadline)
+			defer cancel()
+
+			client, err := pkg.NewClient(
+				pkg.WithSiteName(siteName),
+				pkg.WithHTTPTracing(c.Bool("http-tracing")),
+				pkg.WithAPICredentials(apiKey))
+			if err != nil {
+				stats <- &R{Stats: nil, Error: err}
+			}
+
+			exp, err := client.Export.Stats(ctx)
+			stats <- &R{Stats: exp, Error: err}
+		}(arg, apiKey)
+	}
+
+	go func() {
+		wg.Wait()
+		close(stats)
+	}()
+
+	errors := make([]error, 0)
+	for ret := range stats {
+		if ret.Error != nil {
+			errors = append(errors, ret.Error)
+			continue
 		}
-		ctx, cancel := context.WithTimeout(c.Context, c.Duration("timeout"))
-		defer cancel()
-		exp, err := client.Export.Stats(ctx)
+		err := encoder.Encode(ret.Stats)
 		if err != nil {
-			return err
+			errors = append(errors, ret.Error)
 		}
-		err = encoder.Encode(exp)
-		if err != nil {
-			return err
-		}
+	}
+	if len(errors) > 0 {
+		return errors[0]
 	}
 	return nil
 }
@@ -156,7 +188,7 @@ func Run() error {
 	app := &cli.App{
 		Name:      "goatc",
 		HelpName:  "goatc",
-		Usage:     "Check site stats",
+		Usage:     "Command line access to site stats on https://goatcounter.com",
 		UsageText: "goatc - check site stats",
 		Flags:     fs,
 		Before: func(c *cli.Context) error {
@@ -170,7 +202,7 @@ func Run() error {
 		},
 		ExitErrHandler: func(c *cli.Context, err error) {
 			if err != nil {
-				log.Error().Err(err).Msg("goatc")
+				log.Error().Err(err).Msg(c.App.Name)
 			}
 		},
 		Action: command,
