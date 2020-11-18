@@ -11,7 +11,7 @@ var sites = &cli.Command{
 	Usage: "Return all site names",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
-			Name:    "simple",
+			Name:    "single",
 			Aliases: []string{"s"},
 			Value:   false,
 			Usage:   "Output the site names one line at a time (default: json)",
@@ -23,7 +23,7 @@ var sites = &cli.Command{
 			s[i] = k
 			i++
 		}
-		if c.Bool("simple") {
+		if c.Bool("single") {
 			for i := range s {
 				fmt.Println(s[i])
 			}
