@@ -3,11 +3,11 @@ package main
 import (
 	"os"
 
-	"github.com/bzimmer/goatc/cmd"
+	"github.com/bzimmer/goatc/cmd/goatc"
 )
 
 func main() {
-	err := cmd.Run()
+	err := goatc.Run()
 	if err != nil {
 		os.Exit(1)
 	}

@@ -1,4 +1,4 @@
-package cmd
+package goatc
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -15,8 +14,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v2"
-
-	"github.com/bzimmer/goatc/pkg"
 )
 
 var (
@@ -108,85 +105,6 @@ func flags() ([]cli.Flag, error) {
 	}, nil
 }
 
-func apikeys(args []string) [][]string {
-	var (
-		i    int
-		ok   bool
-		api  string
-		site map[string]string
-	)
-	if len(args) == 0 {
-		for k := range config {
-			args = append(args, k)
-		}
-	}
-	res := make([][]string, len(args))
-	for _, arg := range args {
-		if site, ok = config[arg]; !ok {
-			continue
-		}
-		if api, ok = site["api-key"]; !ok {
-			continue
-		}
-		res[i] = []string{arg, api}
-		i++
-	}
-	return res
-}
-
-func goatc(c *cli.Context) error {
-	type R struct {
-		Stats *pkg.ExportedStats
-		Error error
-	}
-
-	wg := &sync.WaitGroup{}
-	stats := make(chan *R)
-	deadline := time.Now().Add(c.Duration("timeout"))
-
-	for _, k := range apikeys(c.Args().Slice()) {
-		wg.Add(1)
-		go func(siteName, apiKey string) {
-			defer wg.Done()
-			ctx, cancel := context.WithDeadline(c.Context, deadline)
-			defer cancel()
-
-			log.Info().Str("site", siteName).Msg(c.App.Name)
-			client, err := pkg.NewClient(
-				pkg.WithSiteName(siteName),
-				pkg.WithHTTPTracing(c.Bool("http-tracing")),
-				pkg.WithAPICredentials(apiKey))
-			if err != nil {
-				stats <- &R{Stats: nil, Error: err}
-				return
-			}
-			exp, err := client.Export.Stats(ctx)
-			stats <- &R{Stats: exp, Error: err}
-		}(k[0], k[1])
-	}
-
-	go func() {
-		wg.Wait()
-		close(stats)
-	}()
-
-	errors := make([]error, 0)
-	for ret := range stats {
-		if ret.Error != nil {
-			errors = append(errors, ret.Error)
-			continue
-		}
-		err := encoder.Encode(ret.Stats)
-		if err != nil {
-			errors = append(errors, ret.Error)
-		}
-	}
-	if len(errors) > 0 {
-		return errors[0]
-	}
-	return nil
-}
-
 // Run .
 func Run() error {
 	fs, err := flags()
@@ -200,7 +118,9 @@ func Run() error {
 		UsageText: "goatc - check site stats",
 		Flags:     fs,
 		Commands: []*cli.Command{
-			sites,
+			sitesCommand,
+			versionCommand,
+			visitsCommand,
 		},
 		Before: func(c *cli.Context) error {
 			fns := []cli.BeforeFunc{initLogging, initEncoding, initConfig}
@@ -211,12 +131,12 @@ func Run() error {
 			}
 			return nil
 		},
+		Action: visitsCommand.Action,
 		ExitErrHandler: func(c *cli.Context, err error) {
 			if err != nil {
 				log.Error().Err(err).Msg(c.App.Name)
 			}
 		},
-		Action: goatc,
 	}
 	ctx := context.Background()
 	err = app.RunContext(ctx, os.Args)
