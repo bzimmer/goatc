@@ -1,4 +1,4 @@
-package goatcounter
+package goatc
 
 import (
 	"bytes"
@@ -15,9 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const (
-	columnCount = 12
-)
+const columnCount = 14
 
 // ExportService .
 type ExportService service
@@ -30,7 +28,7 @@ func (s *ExportService) Export(ctx context.Context) (*Export, error) {
 		return nil, err
 	}
 	exp := &Export{}
-	err = s.client.Do(req, &exp)
+	err = s.client.do(req, &exp)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +43,7 @@ func (s *ExportService) Status(ctx context.Context, id int) (*Export, error) {
 		return nil, err
 	}
 	exp := &Export{}
-	err = s.client.Do(req, &exp)
+	err = s.client.do(req, &exp)
 	if err != nil {
 		return nil, err
 	}
@@ -97,11 +95,14 @@ func (s *ExportService) Stats(ctx context.Context) (*ExportedStats, error) {
 	}
 
 	for exp.FinishedAt == nil {
-		// @todo replace with something more sophisticated
-		time.Sleep(250 * time.Millisecond)
-		exp, err = s.Status(ctx, exp.ID)
-		if err != nil {
-			return nil, err
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+			exp, err = s.Status(ctx, exp.ID)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -110,23 +111,26 @@ func (s *ExportService) Stats(ctx context.Context) (*ExportedStats, error) {
 		return nil, err
 	}
 
-	return &ExportedStats{
-		Export: exp,
-		Stats:  stats,
-	}, nil
+	return &ExportedStats{Export: exp, Stats: stats}, nil
 }
 
 func parseReader(reader *csv.Reader) ([]*Stats, error) { // nolint:funlen,gocyclo
 	coll := make([]*Stats, 0)
 
+	// https://github.com/zgoat/goatcounter/blob/80b2b59ab175f192b6e50878596598aec95de605/export.go#L99
+
 	// consume the header row
-	_, err := reader.Read()
+	header, err := reader.Read()
 	switch err {
 	case nil:
 	case io.EOF:
 		return coll, nil
 	default:
 		return nil, err
+	}
+	if len(header) != columnCount {
+		log.Error().Strs("header", header).Int("count", len(header)).Msg("incorrect column count")
+		return nil, fmt.Errorf("incorrect column count, found %d, expected %d", len(header), columnCount)
 	}
 
 	n := 0
@@ -141,10 +145,14 @@ func parseReader(reader *csv.Reader) ([]*Stats, error) { // nolint:funlen,gocycl
 		default:
 			return nil, err
 		}
+		if len(row) != columnCount {
+			log.Error().Strs("row", row).Int("count", len(row)).Msg("incorrect column count")
+			return nil, fmt.Errorf("incorrect column count, found %d, expected %d", len(row), columnCount)
+		}
 		stats := &Stats{}
 		for i, w := range row {
 			switch i {
-			case 0: // 1Path
+			case 0: // {Version}Path
 				stats.Path = w
 			case 1: // Title
 				stats.Title = w
@@ -154,40 +162,39 @@ func parseReader(reader *csv.Reader) ([]*Stats, error) { // nolint:funlen,gocycl
 				} else {
 					return nil, err
 				}
-			case 3: // Bot
+			case 3: // UserAgent
+				stats.UserAgent = w
+			case 4: // Browser
+			case 5: // System
+			case 6: // Session
+				stats.Session = w
+			case 7: // Bot
 				// the docs define bot as a bool but the data returned is an integer
 				if b, err := strconv.Atoi(w); err == nil {
 					stats.Bot = b
 				} else {
 					return nil, err
 				}
-			case 4: // Session
-				stats.Session = w
-			case 5: // FirstVisit
+			case 8: // Referrer
+				stats.Referrer = w
+			case 9: // ReferrerScheme
+				stats.ReferrerScheme = w
+			case 10: // ScreenSize
+				stats.ScreenSize = w
+			case 11: // Location
+				stats.Location = w
+			case 12: // FirstVisit
 				if b, err := strconv.ParseBool(w); err == nil {
 					stats.FirstVisit = b
 				} else {
 					return nil, err
 				}
-			case 6: // Referrer
-				stats.Referrer = w
-			case 7: // ReferrerScheme
-				stats.ReferrerScheme = w
-			case 8: // UserAgent
-				stats.UserAgent = w
-			case 9: // ScreenSize
-				stats.ScreenSize = w
-			case 10: // Location
-				stats.Location = w
-			case 11: // Date
+			case 13: // Date
 				if t, err := time.Parse(time.RFC3339, w); err == nil {
 					stats.Date = &t
 				} else {
 					return nil, err
 				}
-			default:
-				log.Error().Strs("row", row).Int("count", i+1).Msg("too many columns")
-				return nil, fmt.Errorf("too many rows, found %d, expected %d", i+1, columnCount)
 			}
 		}
 		coll = append(coll, stats)

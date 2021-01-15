@@ -1,8 +1,9 @@
-package goatc
+package main
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -105,8 +106,7 @@ func flags() ([]cli.Flag, error) {
 	}, nil
 }
 
-// Run .
-func Run() error {
+func run() error {
 	fs, err := flags()
 	if err != nil {
 		return err
@@ -144,4 +144,12 @@ func Run() error {
 		return err
 	}
 	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }

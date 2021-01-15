@@ -1,4 +1,4 @@
-package goatcounter
+package goatc
 
 import "time"
 

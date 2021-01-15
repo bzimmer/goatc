@@ -1,11 +1,11 @@
-package goatc
+package main
 
 import (
 	"context"
 	"sync"
 	"time"
 
-	"github.com/bzimmer/goatc/pkg/goatcounter"
+	"github.com/bzimmer/goatc/pkg/goatc"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
 )
@@ -41,7 +41,7 @@ var visitsCommand = &cli.Command{
 	Usage: "Return all site visits",
 	Action: func(c *cli.Context) error {
 		type R struct {
-			Stats *goatcounter.ExportedStats
+			Stats *goatc.ExportedStats
 			Error error
 		}
 
@@ -57,10 +57,10 @@ var visitsCommand = &cli.Command{
 				defer cancel()
 
 				log.Info().Str("site", siteName).Msg(c.App.Name)
-				client, err := goatcounter.NewClient(
-					goatcounter.WithSiteName(siteName),
-					goatcounter.WithHTTPTracing(c.Bool("http-tracing")),
-					goatcounter.WithAPICredentials(apiKey))
+				client, err := goatc.NewClient(
+					goatc.WithTokenCredentials(apiKey, "", time.Time{}),
+					goatc.WithSiteName(siteName),
+					goatc.WithHTTPTracing(c.Bool("http-tracing")))
 				if err != nil {
 					stats <- &R{Stats: nil, Error: err}
 					return
