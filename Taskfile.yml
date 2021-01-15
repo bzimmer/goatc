@@ -30,7 +30,7 @@ tasks:
     sources:
       - '**/*.go'
     cmds:
-      - go build {{.LDFLAGS}} -o {{.DIST}}/{{.APP}} main.go
+      - go build {{.LDFLAGS}} -o {{.DIST}}/{{.APP}} cmd/goatc/*
 
   install:
     desc: Install {{.APP}}
